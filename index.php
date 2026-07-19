@@ -3,12 +3,15 @@
 $servername = "mysql-89e2927-ceti-41ee.k.aivencloud.com";
 $username = "avnadmin";
 $password = "AVNS_6b5wucqdsPNyp8H1dYq"; 
-$dbname = "rfid-accesos"; 
+$dbname = "defaultdb"; // Si creaste una base de datos llamada 'rfid-accesos' en el panel de Aiven, cámbialo aquí.
 $port = 10714;
 
 // 2. Inicializar y conectar con SSL obligatorio
 $conn = mysqli_init();
-if (!$conn) { die("Fallo en mysqli_init: " . mysqli_connect_error()); }
+if (!$conn) { 
+    die("Fallo en mysqli_init: " . mysqli_connect_error()); 
+}
+
 mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL);
 $res = mysqli_real_connect($conn, $servername, $username, $password, $dbname, $port, NULL, MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT);
 
@@ -39,9 +42,8 @@ if (mysqli_num_rows($check_u) == 0) {
     mysqli_query($conn, "INSERT INTO usuarios (nombre, uid) VALUES ('Usuario de Prueba', 'D7117F25')");
 }
 
-// 4. CONSULTA CORREGIDA (usando fecha_hora en lugar de fecha)
-// Usamos LEFT JOIN para que aunque pases una tarjeta nueva que no esté registrada en la tabla 'usuarios', 
-// aparezca en la lista como "No registrado" en lugar de desaparecer.
+// 4. CONSULTA CORREGIDA
+// Usamos LEFT JOIN para incluir tarjetas leídas que aún no estén asignadas a un usuario en específico
 $sql = "SELECT a.id, a.uid, IFNULL(u.nombre, 'Tarjeta No Registrada') AS nombre, a.fecha_hora 
         FROM accesos a 
         LEFT JOIN usuarios u ON a.uid = u.uid 
@@ -87,7 +89,6 @@ $resultado = mysqli_query($conn, $sql);
                             echo "<td>#" . $fila['id'] . "</td>";
                             echo "<td><span class='codigo-uid'>" . $fila['uid'] . "</span></td>";
                             echo "<td class='nombre-usuario'>" . $fila['nombre'] . "</td>";
-                            // Corregido para usar fecha_hora
                             echo "<td class='fecha-registro'>" . date('d/m/Y h:i:s A', strtotime($fila['fecha_hora'])) . "</td>";
                             echo "</tr>";
                         }
