@@ -2,8 +2,8 @@
 // 1. Datos de conexión a la base de datos de Aiven
 $servername = "mysql-89e2927-ceti-41ee.k.aivencloud.com";
 $username = "avnadmin";
-$password = "AVNS_6b5wucqdsPNyp8H1dYq"; 
-$dbname = "defaultdb"; // Si creaste una base de datos llamada 'rfid-accesos' en el panel de Aiven, cámbialo aquí.
+$password = "AVNS_6b5wucqdsPNyp8HldYq"; // <-- PEGA AQUÍ LA CONTRASEÑA COPIADA DIRECTAMENTE DE AIVEN
+$dbname = "rfid-accesos"; // Base de datos manual confirmada en tu panel
 $port = 10714;
 
 // 2. Inicializar y conectar con SSL obligatorio
@@ -20,7 +20,6 @@ if (!$res) {
 }
 
 // 3. ASEGURAR QUE LAS TABLAS EXISTAN (Auto-creación preventiva)
-// Tabla de usuarios
 $tabla_u = "CREATE TABLE IF NOT EXISTS usuarios (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -28,7 +27,6 @@ $tabla_u = "CREATE TABLE IF NOT EXISTS usuarios (
 )";
 mysqli_query($conn, $tabla_u);
 
-// Tabla de accesos (con la columna fecha_hora)
 $tabla_a = "CREATE TABLE IF NOT EXISTS accesos (
     id INT AUTO_INCREMENT PRIMARY KEY,
     uid VARCHAR(50) NOT NULL,
@@ -42,8 +40,7 @@ if (mysqli_num_rows($check_u) == 0) {
     mysqli_query($conn, "INSERT INTO usuarios (nombre, uid) VALUES ('Usuario de Prueba', 'D7117F25')");
 }
 
-// 4. CONSULTA CORREGIDA
-// Usamos LEFT JOIN para incluir tarjetas leídas que aún no estén asignadas a un usuario en específico
+// 4. CONSULTA
 $sql = "SELECT a.id, a.uid, IFNULL(u.nombre, 'Tarjeta No Registrada') AS nombre, a.fecha_hora 
         FROM accesos a 
         LEFT JOIN usuarios u ON a.uid = u.uid 
@@ -60,7 +57,7 @@ $resultado = mysqli_query($conn, $sql);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel RFID</title>
     <link rel="stylesheet" href="CSS/style.css">
-    <meta http-equiv="refresh" content="5"> <!-- Se actualiza cada 5 segundos para ver los datos en tiempo real -->
+    <meta http-equiv="refresh" content="5"> <!-- Se actualiza cada 5 segundos -->
 </head>
 
 <body>
