@@ -1,51 +1,59 @@
 <?php
-$servername = "localhost";
-$username = "root";       
-$password = "";           
-$dbname = "control_acceso";
+// 1. Datos de conexión a la base de datos de Aiven
+$servername = "mysql-89e2927-ceti-41ee.k.aivencloud.com";
+$username = "avnadmin";
+$password = "AVNS_6b5wucqdsPNyp8H1dYq"; 
+$dbname = "defaultdb"; 
+$port = 10714;
 
-// Crear conexión
-$conn = new mysqli($servername, $username, $password, $dbname);
+// 2. Inicializar la extensión mysqli
+$conn = mysqli_init();
 
-// Verificar conexión
-if ($conn->connect_error) {
-    die("Error de conexion: " . $conn->connect_error);
+if (!$conn) {
+    die("Fallo en mysqli_init: " . mysqli_connect_error());
 }
 
+// 3. Configurar la conexión para ignorar la verificación estricta del certificado SSL local en Render
+mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL);
+
+// 4. Realizar la conexión segura incluyendo el puerto y la bandera SSL
+$res = mysqli_real_connect(
+    $conn, 
+    $servername, 
+    $username, 
+    $password, 
+    $dbname, 
+    $port, 
+    NULL, 
+    MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT
+);
+
+if (!$res) {
+    die("Error de conexión: " . mysqli_connect_error());
+}
+
+// 5. Procesar la petición del Arduino
+// Verificamos si llegó el parámetro 'uid' por la URL (ej: registro.php?uid=D7117F25)
 if (isset($_GET['uid'])) {
-    // 1. Limpiar espacios en blanco e invisibles
-    $uid = trim($_GET['uid']);
+    $uid = $_GET['uid'];
     
-    // 2. Forzar a que esté completamente en MAYÚSCULAS
-    $uid = strtoupper($uid);
+    // Limpiamos la variable para evitar inyecciones SQL básicas
+    $uid = mysqli_real_escape_string($conn, $uid);
     
-    // 3. Proteger contra Inyección SQL de forma segura sin usar preg_replace incorrectos
-    $uid = $conn->real_escape_string($uid);
+    // Insertamos la lectura en la tabla de accesos
+    // NOTA: Asegúrate de que tu tabla en Aiven se llame 'accesos' y tenga las columnas 'uid' y 'fecha_hora'
+    $sql = "INSERT INTO accesos (uid, fecha_hora) VALUES ('$uid', NOW())";
     
-    // Consultar si el usuario existe y está activo
-    $sql_usuario = "SELECT nombre, activo FROM usuarios WHERE uid = '$uid'";
-    $resultado = $conn->query($sql_usuario);
-    
-    if ($resultado->num_rows > 0) {
-        $usuario = $resultado->fetch_assoc();
-        
-        if ($usuario['activo'] == 1) {
-            // Registrar el evento en la tabla de accesos
-            $sql_acceso = "INSERT INTO accesos (uid) VALUES ('$uid')";
-            if ($conn->query($sql_acceso) === TRUE) {
-                echo "ACCESO_CONCEDIDO";
-            } else {
-                echo "ERROR_TABLA_ACCESOS";
-            }
-        } else {
-            echo "ACCESO_DENEGADO_INACTIVO";
-        }
+    if (mysqli_query($conn, $sql)) {
+        echo "ACCESO_REGISTRADO_OK";
     } else {
-        echo "TARJETA_NO_REGISTRADA";
+        echo "ERROR_AL_GUARDAR: " . mysqli_error($conn);
     }
+    
 } else {
-    echo "NO_SE_RECIBIO_UID";
+    echo "ERROR: No se recibio ningun UID.";
 }
 
-$conn->close();
+// 6. Cerrar la conexión
+mysqli_close($conn);
 ?>
