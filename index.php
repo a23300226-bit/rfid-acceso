@@ -1,17 +1,53 @@
 <?php
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "control_acceso";
+// 1. Datos de conexión a la base de datos de Aiven
+$servername = "mysql-89e2927-ceti-41ee.k.aivencloud.com";
+$username = "avnadmin";
+$password = "AVNS_6b5wucqdsPNyp8H1dYq"; 
+$dbname = "rfid-accesos"; 
+$port = 10714;
 
-$conn = new mysqli($servername, $username, $password, $dbname);
-if ($conn->connect_error) { die("Error: " . $conn->connect_error); }
+// 2. Inicializar y conectar con SSL obligatorio
+$conn = mysqli_init();
+if (!$conn) { die("Fallo en mysqli_init: " . mysqli_connect_error()); }
+mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL);
+$res = mysqli_real_connect($conn, $servername, $username, $password, $dbname, $port, NULL, MYSQLI_CLIENT_SSL_DONT_VERIFY_SERVER_CERT);
 
-$sql = "SELECT a.id, a.uid, u.nombre, a.fecha 
+if (!$res) { 
+    die("Error de conexión: " . mysqli_connect_error()); 
+}
+
+// 3. ASEGURAR QUE LAS TABLAS EXISTAN (Auto-creación preventiva)
+// Tabla de usuarios
+$tabla_u = "CREATE TABLE IF NOT EXISTS usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    uid VARCHAR(50) NOT NULL UNIQUE
+)";
+mysqli_query($conn, $tabla_u);
+
+// Tabla de accesos (con la columna fecha_hora)
+$tabla_a = "CREATE TABLE IF NOT EXISTS accesos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    uid VARCHAR(50) NOT NULL,
+    fecha_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)";
+mysqli_query($conn, $tabla_a);
+
+// Insertar un usuario de prueba por si la tabla está vacía
+$check_u = mysqli_query($conn, "SELECT id FROM usuarios LIMIT 1");
+if (mysqli_num_rows($check_u) == 0) {
+    mysqli_query($conn, "INSERT INTO usuarios (nombre, uid) VALUES ('Usuario de Prueba', 'D7117F25')");
+}
+
+// 4. CONSULTA CORREGIDA (usando fecha_hora en lugar de fecha)
+// Usamos LEFT JOIN para que aunque pases una tarjeta nueva que no esté registrada en la tabla 'usuarios', 
+// aparezca en la lista como "No registrado" en lugar de desaparecer.
+$sql = "SELECT a.id, a.uid, IFNULL(u.nombre, 'Tarjeta No Registrada') AS nombre, a.fecha_hora 
         FROM accesos a 
-        INNER JOIN usuarios u ON a.uid = u.uid 
-        ORDER BY a.fecha DESC LIMIT 20"; 
-$resultado = $conn->query($sql);
+        LEFT JOIN usuarios u ON a.uid = u.uid 
+        ORDER BY a.fecha_hora DESC LIMIT 20"; 
+
+$resultado = mysqli_query($conn, $sql);
 ?>
 
 <!DOCTYPE html>
@@ -22,7 +58,7 @@ $resultado = $conn->query($sql);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel RFID</title>
     <link rel="stylesheet" href="CSS/style.css">
-    <meta http-equiv="refresh" content="5">
+    <meta http-equiv="refresh" content="5"> <!-- Se actualiza cada 5 segundos para ver los datos en tiempo real -->
 </head>
 
 <body>
@@ -45,17 +81,18 @@ $resultado = $conn->query($sql);
                 </thead>
                 <tbody>
                     <?php
-                    if ($resultado->num_rows > 0) {
-                        while($fila = $resultado->fetch_assoc()) {
+                    if ($resultado && mysqli_num_rows($resultado) > 0) {
+                        while($fila = mysqli_fetch_assoc($resultado)) {
                             echo "<tr>";
                             echo "<td>#" . $fila['id'] . "</td>";
                             echo "<td><span class='codigo-uid'>" . $fila['uid'] . "</span></td>";
                             echo "<td class='nombre-usuario'>" . $fila['nombre'] . "</td>";
-                            echo "<td class='fecha-registro'>" . date('d/m/Y h:i:s A', strtotime($fila['fecha'])) . "</td>";
+                            // Corregido para usar fecha_hora
+                            echo "<td class='fecha-registro'>" . date('d/m/Y h:i:s A', strtotime($fila['fecha_hora'])) . "</td>";
                             echo "</tr>";
                         }
                     } else {
-                        echo "<tr><td colspan='4' class='sin-datos'>No hay registros todavía. Pasa una tarjeta.</td></tr>";
+                        echo "<tr><td colspan='4' class='sin-datos'>No hay registros todavía. Pasa una tarjeta por el lector.</td></tr>";
                     }
                     ?>
                 </tbody>
@@ -63,7 +100,7 @@ $resultado = $conn->query($sql);
         </main>
     </div>
 
-    <?php $conn->close(); ?>
+    <?php mysqli_close($conn); ?>
 </body>
 
 </html>
